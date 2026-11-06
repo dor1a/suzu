@@ -1,0 +1,48 @@
+#!/bin/sh
+# Send a notification with the runtime's own icon.
+# Usage: suzu <claude|codex> <title> [message]
+#        suzu setup    ask for permission for both apps, waiting up to 2 minutes each
+# Exit codes: 64 usage, 77 turned off in System Settings, 75 no answer to the
+# permission prompt, 1 anything else. Callers should fall back on non-zero.
+apps=@LIBEXEC@
+
+# macOS refuses notifications from an app it has not registered, and Homebrew's
+# sandbox blocks registering at install time.
+register() {
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -f "$apps/$1.app" >/dev/null 2>&1
+}
+
+usage() {
+  echo 'usage: suzu <claude|codex> <title> [message]' >&2
+  echo '       suzu setup' >&2
+  exit 64
+}
+
+case "${1:-}" in
+  setup)
+    overall=0
+    for app in "Claude Code" "Codex"; do
+      register "$app"
+      echo "$app: allow the notification prompt"
+      # macOS can refuse the first request from a new app and accept the next.
+      for try in 1 2 3; do
+        status=0
+        SUZU_WAIT=120 "$apps/$app.app/Contents/MacOS/suzu" "$app" "Notifications are on." && break
+        status=$?
+        [ "$status" -eq 1 ] || break
+        sleep 2
+      done
+      [ "$status" -eq 0 ] || overall=$status
+    done
+    exit "$overall"
+    ;;
+  claude) app="Claude Code" ;;
+  codex) app="Codex" ;;
+  *) usage ;;
+esac
+shift
+[ "$#" -ge 1 ] || usage
+
+register "$app"
+exec "$apps/$app.app/Contents/MacOS/suzu" "$@"
