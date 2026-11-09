@@ -7,7 +7,7 @@
 **macOS notifications that show who sent them**
 
 A finished Claude Code turn and a finished Codex turn each arrive with their own icon,<br>
-so you can tell them apart without reading the banner.
+so you can tell them apart without reading the banner. Anything else gets suzu's bell.
 
 [![macOS](https://img.shields.io/badge/macOS-only-000000?logo=apple&logoColor=white)](#install)
 [![Swift](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)](Sources/main.swift)
@@ -18,6 +18,7 @@ so you can tell them apart without reading the banner.
 ```sh
 suzu claude "Claude Code - done (~3m)" "the prompt you left running"
 suzu codex  "Codex - done (~3m)"       "the prompt you left running"
+suzu suzu   "Today"                    "2 items due"
 ```
 
 The name is 鈴, a small round bell.
@@ -31,10 +32,11 @@ that sent it, and there is no option to change it per notification.
 | -- | -- |
 | `osascript` | Script Editor's icon |
 | terminal-notifier 3.x | Its own icon, plus an image on the right. `-sender` and `-appIcon` were removed in 3.0.0 |
-| suzu | The icon of the runtime you named |
+| suzu | The icon of the sender you named |
 
-So suzu builds one small app per runtime. Both run the same binary and differ only
-in their bundle identifier, name and icon.
+So suzu builds one small app per sender: one for each runtime, and one with suzu's
+own logo for scripts that are neither, such as a scheduled reminder. All of them run
+the same binary and differ only in their bundle identifier, name and icon.
 
 ## Install
 
@@ -47,16 +49,17 @@ The formula builds from source, so it needs the Xcode Command Line Tools. Instal
 the apps you want icons from first, because the icons are read at build time.
 
 `suzu setup` asks for notification permission. macOS asks separately for each
-app, so allow both prompts. Each one waits up to two minutes.
+app, so allow all three prompts. Each one waits up to two minutes. After an
+upgrade that adds an app, run it again.
 
 ## Usage
 
 ```
-suzu <claude|codex> <title> [message]
+suzu <claude|codex|suzu> <title> [message]
 suzu setup
 ```
 
-Nothing else is needed for a one-off notification. To send one when an agent
+`suzu suzu` sends with suzu's own icon. Nothing else is needed for a one-off notification. To send one when an agent
 finishes, call it from a Stop hook and fall back to `osascript`, so you still get
 a notification on a Mac without suzu. Hooks may not have Homebrew on their `PATH`,
 so use the full path. On an Intel Mac it is `/usr/local/bin/suzu`.
@@ -98,22 +101,23 @@ Scripts should treat any non-zero code as "use another notifier".
 ## How it works
 
 ```
-                          ┌──> Claude Code.app   com.phomelo.suzu.claude
-suzu <claude|codex> ... ──┤                                                ──> UNUserNotificationCenter
-                          └──> Codex.app         com.phomelo.suzu.codex
+                               ┌──> Claude Code.app   com.phomelo.suzu.claude
+suzu <claude|codex|suzu> ... ──┼──> Codex.app         com.phomelo.suzu.codex   ──> UNUserNotificationCenter
+                               └──> suzu.app          com.phomelo.suzu.suzu
 ```
 
 `bin/suzu` registers the chosen app with Launch Services and runs its binary. The
 registration happens at run time because Homebrew's sandbox blocks it at install
 time, and macOS refuses notifications from an app it has not registered.
 
-No logo lives in this repository. `scripts/build.sh` reads icons from what is
-installed on your Mac:
+No third-party logo lives in this repository. `scripts/build.sh` reads the runtime
+icons from what is installed on your Mac:
 
 | App | Icon source, first match wins |
 | -- | -- |
 | Claude Code | `/Applications/Claude.app` |
 | Codex | `/Applications/Codex.app`, then the logo in the Codex extension for VS Code, placed on the macOS icon grid |
+| suzu | `docs/logo.svg`, placed on the macOS icon grid |
 
 If nothing matches, the app still works and shows a blank icon.
 
@@ -123,7 +127,7 @@ If nothing matches, the app still works and shows a blank icon.
 
 Run `suzu setup` and keep it running until you have answered. The prompt goes away
 when the process that raised it exits, and an ordinary `suzu` call waits only five
-seconds. Then check that both apps are allowed in System Settings > Notifications.
+seconds. Then check that all three apps are allowed in System Settings > Notifications.
 
 ### An icon is blank
 
@@ -151,7 +155,7 @@ brew uninstall suzu
 brew untap dor1a/tap
 ```
 
-The two entries can stay in System Settings > Notifications until you reset them.
+The three entries can stay in System Settings > Notifications until you reset them.
 
 ## Development
 
@@ -159,7 +163,7 @@ The two entries can stay in System Settings > Notifications until you reset them
 scripts/build.sh build
 ```
 
-This builds both apps into `build/`. `bin/suzu` needs `@LIBEXEC@` replaced first,
+This builds all three apps into `build/`. `bin/suzu` needs `@LIBEXEC@` replaced first,
 which the formula does, so run an app's binary directly while developing. Register
 it once, or macOS refuses the notification:
 

@@ -1,6 +1,6 @@
 // suzu: post one macOS notification from inside an app bundle.
 // The left icon of a notification is always the sender's bundle icon, so each
-// runtime gets its own bundle. Run through bin/suzu.
+// sender gets its own bundle. Run through bin/suzu.
 import Foundation
 import UserNotifications
 

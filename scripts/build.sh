@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Build one notification app per runtime into <dest>. Icons come from what is
-# installed on this Mac, so no third-party logo lives in this repository.
+# Build one notification app per sender into <dest>. The Claude Code and Codex
+# icons come from what is installed on this Mac, so no third-party logo lives in
+# this repository. The suzu app uses suzu's own logo.
 #
 # Usage: scripts/build.sh <dest>
 # SUZU_HOME overrides the home searched for icons; Homebrew replaces HOME while building.
@@ -30,11 +31,13 @@ extension_file() {
   [[ -n $found && -f $found/$2 ]] && printf '%s\n' "$found/$2"
 }
 
-# Turn a white vector logo into an .icns on the macOS icon grid.
-glyph_icon() {
-  local glyph=$1 out=$2 set=$work/icon.iconset size
+# Turn a vector logo into an .icns on the macOS icon grid.
+# Usage: grid_icon <out.icns> [--full] <logo.svg>
+grid_icon() {
+  local out=$1 set=$work/icon.iconset size
+  shift
   mkdir -p "$set"
-  "$work/make-icon" "$glyph" "$work/icon.png"
+  "$work/make-icon" "$@" "$work/icon.png"
   for size in 16 32 128 256 512; do
     sips -s format png -z "$size" "$size" "$work/icon.png" --out "$set/icon_${size}x${size}.png" >/dev/null
     sips -s format png -z $((size * 2)) $((size * 2)) "$work/icon.png" --out "$set/icon_${size}x${size}@2x.png" >/dev/null
@@ -42,15 +45,18 @@ glyph_icon() {
   iconutil -c icns "$set" -o "$out"
 }
 
+# Usage: bundle <key> <name> <icns> <white glyph> [full-color logo]
 bundle() {
-  local key=$1 name=$2 icns=$3 glyph=$4
+  local key=$1 name=$2 icns=$3 glyph=$4 logo=${5:-}
   local app=$dest/$name.app
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
   cp "$work/suzu" "$app/Contents/MacOS/suzu"
   if [[ -n $icns ]]; then
     cp "$icns" "$app/Contents/Resources/AppIcon.icns"
   elif [[ -n $glyph ]]; then
-    glyph_icon "$glyph" "$app/Contents/Resources/AppIcon.icns"
+    grid_icon "$app/Contents/Resources/AppIcon.icns" "$glyph"
+  elif [[ -n $logo ]]; then
+    grid_icon "$app/Contents/Resources/AppIcon.icns" --full "$logo"
   else
     echo "suzu: no $name icon found on this Mac; it will show a blank icon" >&2
   fi
@@ -61,3 +67,4 @@ bundle() {
 bundle claude "Claude Code" "$(app_icon /Applications/Claude.app || true)" ""
 bundle codex "Codex" "$(app_icon /Applications/Codex.app || true)" \
   "$(extension_file openai.chatgpt resources/blossom-white.svg || true)"
+bundle suzu "suzu" "" "" "$root/docs/logo.svg"
